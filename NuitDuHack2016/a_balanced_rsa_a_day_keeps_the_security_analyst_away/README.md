@@ -28,7 +28,7 @@ public Casse_rsa(BigInteger tocasse) {
 ```
 To solve it, one has to discover the p factor first, then calculates all the RSA primitives to be able to decipher the AES key, and finally use the AES key to decipher the message (no salt used).
 
-## challenge organisation
+## repository organisation
 the files are the following :
 
 * ./
