@@ -1,0 +1,208 @@
+package main
+
+import (
+	"crypto"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
+	"fmt"
+	"io/ioutil"
+	"math/big"
+)
+
+// A little shortcut here: we know that the vulnerable signature is the "Pic Sans Nom" one ;)
+const (
+	ct1   = "Mont Blanc (4809 m)"
+	sign1 = "MdxEIG7Q6/t40G6SCIWNzHypf27YF4RsP2gCE611s5U/Xt6Bjqzh7sJfBNaYvZ1XRhpTqIHSyOsa8KQsY4eqvAs9GEzPeKcFzkkhkF+4P5cImrm1GPbtAaSeJCVBH2eJ7z0kQ2OBkqZrLWr2C3uh2HTp2hxozOYAJwubRSWjuHXElnsDGDWqXruBzxOUr88y8bExnYYyudgvgcAdmYgGijKnhs4pTgSw72Qjvf2Vf+FVGUT4FPom15t/CBuwMTW2lYsveHeET9c8hr7zKpRlV6xXUbplvMwuHPYWDgHDDBz19bCV13iuId7m1nmJE+cocigRxvuZknZLKHjlzlhFlRWidYUMOHTsKfbbPsol6CESOfXKL1WciQanlF1fA+KI6sD49OJZBmJca3GkaLQptPTHAYN+rIGl2cw+1iwP4bcZcBXY9NucHkLqokX2RAfEhOKOeYTg85IQf9Uep5vPgqe9d7oFuiHRbP2GhJshMGOh4DQwYpizfy2EhRIuD3npnhjD5fLIaW/UhBtbLTFdaQy0M30xEqzvDlQCrWrmLTMmrI5Yt7j8CXXv6gmSZXgngYl5QbkWtxfjB/p0NnZ62YUksOFGVMqLguOTYKrSIVmJ0qU5orwqaklGXZJp+diSK1zkqciX0cKHWncHHhVdWZZLasi8t6CzsbH4ufPNG6U="
+	ct2   = "Pic Sans Nom (3913 m)"
+	sign2 = "sTL3fvslMBMcSWCELORElJ3Z54cOdM9+PnHg52AdREr9ELNogojXgzVRzRo8kYeMo/g5GL/0pb3USfWpbbiGIr1aHpwngHGolJ/6rQbT9h2Mgwb2O4UqWET2/MTGK1LFSNa8X/NbVEiJDFaAhfhtRp0914Ngm76qczGlbQEKI2OhhUU0t4oN6psvIOnuzwzIY2fxc/HePQKTsCeyTq6KNaxoIgGIYPkgNtIKWqZEi3Pf4R00IVYcw0H5ohhXQ3x7zXyla1AizVAGfzYpXcBNNAOrfoLEaSQ+fsxYiWsAwRShZDpctmtPyC+hld1WxZ5lxH5kk/EyZxMc+tjV6BVixBJmnBe9RDJwYWbAivdZ9r5eu6wQXPlNgj2/bFZkIV1GK2o5mqwY8her/SZ/Hruwg0pm93MccujCyceM37HbUVuNiDsfDq35A26w+V0h0tyyB/fdrLQ0/AOO6YEOkXIJ9TR8uTAng5b3b4eE8s2MSnccqRVC3bn+lZD+H5L3Rqpd559RFRLOOVbh/6SQ9PN4lyYwIu1bkAlq77psl8Ux4e1JpEWC/Gw5xBAuPUesZI8GKozbts+Oe9p4ph7i8chytD4faH4rCDcKTaGhfhyOVcsy07KyoGvctrZR1832FLnfjA966Laow9dU83nzvbuu9B0zVMfavlc3M85oJW7bsKA="
+	ct3 = "Mont Blanc de Courmayeur (4748 m)"
+	sign3 = "IRJXw6Fw91WE7aGl1S7j0jdQmbBTU6fIYvITinNj9tE1P4CQEzcOte9J5zThoeFVZfMGoxuWnIGMjBT2FkoDRjqIHy4haWGSg0rxviedsitIVF/6OURP1d1wPV1BUhgTCSJ4eRHj97ZAQmqaz3PxIc5mB6rtjM67wrAcM0lbId4yTnIv9QP+5YRM3aEYd8t+WPWYwtmWLNyPim9NxnAoXYuMNKaMmxWswPHvVdJeFt2INzVdTp9ttCj0YZPoQIC4lJGZCROg7+9DQxhkVduzmnjY85o6s+tiVHrAXK0kQM3Q6DLGIuGVznEXjBQkL9TdoDCIAK4XR8QqUQRKqlZ6MARiZlBlzrlg1g04gd9qN65VGDdz19mC3Nx5V8vGl9VsDKh8GShjYaVg490BdMUElS+Y/u2ACQ7a/paUakluGuJkYC45B+d4xw7lMaBt3KbShiuKDDkeXpEBiqnH+Qf8v2K4mg27ZS8v60ZaomQlkEoLvXhNfO1T0A9yo5DY63F3wugH5HnJoD6Q9J1+fw4pkONRaH4Mb1s8E6IVZjw3VS4p6QPnjky2p8cnJ8a7gMI0ciYhNHnmcewrrHKm7UPZhd9EWgyGjtPhniiUGpmtZRcWy6DRbY9fTIL9qtW1flbqWsglbjFQXaIJS0v7r42tNPjF5Uz3pSutC5FeuEs+rYM="
+	
+	
+	
+	
+	
+	
+ct4 = "Mont Blanc (4809 m)"
+sign4="MdxEIG7Q6/t40G6SCIWNzHypf27YF4RsP2gCE611s5U/Xt6Bjqzh7sJfBNaYvZ1XRhpTqIHSyOsa8KQsY4eqvAs9GEzPeKcFzkkhkF+4P5cImrm1GPbtAaSeJCVBH2eJ7z0kQ2OBkqZrLWr2C3uh2HTp2hxozOYAJwubRSWjuHXElnsDGDWqXruBzxOUr88y8bExnYYyudgvgcAdmYgGijKnhs4pTgSw72Qjvf2Vf+FVGUT4FPom15t/CBuwMTW2lYsveHeET9c8hr7zKpRlV6xXUbplvMwuHPYWDgHDDBz19bCV13iuId7m1nmJE+cocigRxvuZknZLKHjlzlhFlRWidYUMOHTsKfbbPsol6CESOfXKL1WciQanlF1fA+KI6sD49OJZBmJca3GkaLQptPTHAYN+rIGl2cw+1iwP4bcZcBXY9NucHkLqokX2RAfEhOKOeYTg85IQf9Uep5vPgqe9d7oFuiHRbP2GhJshMGOh4DQwYpizfy2EhRIuD3npnhjD5fLIaW/UhBtbLTFdaQy0M30xEqzvDlQCrWrmLTMmrI5Yt7j8CXXv6gmSZXgngYl5QbkWtxfjB/p0NnZ62YUksOFGVMqLguOTYKrSIVmJ0qU5orwqaklGXZJp+diSK1zkqciX0cKHWncHHhVdWZZLasi8t6CzsbH4ufPNG6U="
+
+ct5="Mont Blanc de Courmayeur (4748 m)"
+sign5="IRJXw6Fw91WE7aGl1S7j0jdQmbBTU6fIYvITinNj9tE1P4CQEzcOte9J5zThoeFVZfMGoxuWnIGMjBT2FkoDRjqIHy4haWGSg0rxviedsitIVF/6OURP1d1wPV1BUhgTCSJ4eRHj97ZAQmqaz3PxIc5mB6rtjM67wrAcM0lbId4yTnIv9QP+5YRM3aEYd8t+WPWYwtmWLNyPim9NxnAoXYuMNKaMmxWswPHvVdJeFt2INzVdTp9ttCj0YZPoQIC4lJGZCROg7+9DQxhkVduzmnjY85o6s+tiVHrAXK0kQM3Q6DLGIuGVznEXjBQkL9TdoDCIAK4XR8QqUQRKqlZ6MARiZlBlzrlg1g04gd9qN65VGDdz19mC3Nx5V8vGl9VsDKh8GShjYaVg490BdMUElS+Y/u2ACQ7a/paUakluGuJkYC45B+d4xw7lMaBt3KbShiuKDDkeXpEBiqnH+Qf8v2K4mg27ZS8v60ZaomQlkEoLvXhNfO1T0A9yo5DY63F3wugH5HnJoD6Q9J1+fw4pkONRaH4Mb1s8E6IVZjw3VS4p6QPnjky2p8cnJ8a7gMI0ciYhNHnmcewrrHKm7UPZhd9EWgyGjtPhniiUGpmtZRcWy6DRbY9fTIL9qtW1flbqWsglbjFQXaIJS0v7r42tNPjF5Uz3pSutC5FeuEs+rYM="
+
+ct6 ="Pointe Dufour (4634 m)"
+sign6="ZtTJDdRDU/645zErdGHEPL4/R3D+WyG7vU0sqQPSeSfC8ePJSv2AI8Dwm3UpLGO0Brjh2ByVODNBcy+Nzcj0e3GAy5xqvCZfdjtnoPiDeJIiid3CCqrU02dwR+Ni8CfVV+VgxorO2yuXR88T2p9IQ2RmLLu3AXoNewVgsnrOovtYwhKSQPYFdxPKGlcovw70ly+eqJJ+RnRj832CxgOcXWPTE3ahEXwpgeIBNkzJwR37iWvvSLIdYDQvq7dL3jo+anVvgyAQap0a2Fgn5o36w69IGJbMA3kV8OvDNEQIuRU3SjGi/PU8A1wly37pJD8Q7AhOlkhnZIHEU17sGupPtmHFjVvtAryPgjRMlcICmB/JaNRYx/9OGMKlHrNlijEQ4lj6M3WMRKXGnBOGW+eavrfid1srSA5+d/vJcQqCA0Vj26vVvDIv6JQk1Jjyi4m8o2GXZHiEwO+R8gUTdyLSjobkxrHBn0vAQOibcf04skK9y1CTzvXf/DfoWqRf3/r/6EkbsV77BMH5NogubL5u032hPAzUfNQNOLsx2yHN4WAGS0+ge1jGZ6lZpek9Ns1wXwQVgA62w4XTP77ruUKNP80XcRh+tnUM9GTqKVie8dyDW3mHeEmwt1Vs1IF19H0TRgpgPXhAMvLA5LJbQpnqmzX1iY2UiWMfM3scVpDn+hc="
+
+ct7="Dom des Mischabel (4545 m)"
+sign7="CfqCd4jwvkAxoEkxUHSiAeK1IJ1B1Yt4xVDiIoi4jZplC07/yg2GS4eciOOj9NujSIIK+HIAK/KZ5Fr3LhAgHaOS6A16dha+5Y4352bXa8vdg5K+Rgmgm+3436oqaYr5GkBZOOuRNF5JGto3fsozkqRMC99ilAtQHOVvSm/nXTVnbv52RmYJEkeBUQQ2N4faM7/OcjlE7O8SYlzHvSIGTVduoUGruwuD+m6wvIAd3jgCBKsBsk4aveJ+b6UJ4AFy3o4lUVgYeo3PYVQORnB8N2PXOyGNkDQC5+k/eO678gn3u8eIA5tg5Hszhh0YbCYW9IUcpSCAE9rHtsoHrWQTh/D1CeW5isKy730CNtFGbgRQIC7ikltw7wOx83+HMbLAokKn7UETQ3A+7tV2VdwHOPMjj3hZr012ddojq51DQVYjj4azi+3Rw/ufQUCSMQzRPBew2VDz8NNY7yjtM9UuTJ5v1M1jmxDLcTo7XpcAbqBmvKGZqkWR/N2jxxYxs6/RclE2E5/p6EFrgUxRP21ZAfx8HjOa8JpCDSIEx5D1BEDk6M4PhD5nTeeykHzv50wQR+WvySugUB2tetVgBR1yGiXnIv3fHXVCECHHeYf5ALBveM2V+F9ntZjPjpNTW603Ycn8xhTmYHUkI63zziaMIZGWjwTmwrnv5Bv32BMQ/QA="
+
+ct8="Liskamm oriental (4527 m)"
+sign8="bATbIrz52FOP7XaN9OMzjmR3tJo/8vxUc4jjmOzfi9ExUrvPe5c37QaGzGWpDN1NVATGBoWY+PmLSWPbB+g2nhmvUDsNfdnj2qSk4pxeaVg6LMZBsxaiz91JRL8uFjite+udhIpHCXpCjq+9d6zCTAWBym2Jt0VN+3Wl0K96/22buM9OEytvJosA6RT3JC6YOKaqOdZg7UEcnqgt736XUReiYYqMmQ8tZJgOXHmdAq5HJFGDX4ksxyf4jRekW/tQF+LMKZMoWpmMtJDuLEeazUDnIsvkzP0bCsiFvkfYeGQnI2HpSKCrTyaP2rD46Dodf84pn/flKNt4xS/zxxN0Nj0WDisA7yS6r2oHPo2i4zitYX2AoOh4sBjQhAKFgKbvZ2L9V1hFolwFyLLdlYSmVVZ3TRkvv2j+U8I2RbwYijh7tX/BljmVhmKrN9ItEJY7Pv2XV7RGPEVbdnz2Nv354fc0hZDgf0y7VQS3T9ISxvu1GuEctAE+cFo+1Kt7eQpbwOkfSppjHhkJU/uxRZSuDWgvAzWN7+2jL9AdC544SCAV6E96g0CeT/6YzajJUwMKUV1v5UIkKh81w6H+ppaKhGl697ZojdKRXRkKQ+4/fS905Tc91INs/xfvCmPtHrpjespt9AtoYNrY9OdeNE1ccv9fm3pol2D3uXLQepx7xyk="
+
+ct9="Weisshorn (4505 m)"
+sign9="O5HhXg5nKdrOrEktY+69CVQyJCvMCx1qbXqvrt6ltUn/h05EdFlOzzYC0KwVzYeZr/JMjtRVd2/3iObC00kLTz5plIpNxZ+2BUx5ppNuOp0QfU/wBJTM4Wtbz6As+XHqd2UrnI7ySjxGCqyK6pVnIMjtathp87RUBuNT5jdK+zDPdMogR5/todJW9YTd0/qiPrem2Pw3zVBxJnbX9dMweOEjLLUZ/vPqtIbuQ07qlSMIigzeE/BeoPbz9rpY//SLp+MLQ84/CUNrxKJJoAiicKRpKFsig1L8QQEhkTGwwgbHiW4WRDXz/lOSfwq7cD/3lDSbJMdHiMSrDeA3ks+sZPpKZSpbJpfo/WB2bqsXGA/DcLdWQYd4/zzj7I2s3XfQ3xpNzYwq1yPq1rilRyKIVGRK52JNH2Jw34YqVwJy5xqn6caFFR5PtVnu3Qv/PP59axpdYwbnguju5BdFJF7p+da2rPHNm0NTkd4bboJHCa8RpG/jdhCsa5T4qZphr0Ol+Oj4wK97uYs8ZB8oheeEsqmUXn1ryaI+eYJoXm7aNJn6nMqZs9XA/RkxUO6MU9DZz3+SK5X6+0u6ZKdIKCO5nmUPer/a+JDDq5Z4Kv8Am0ZlTS5nPJVsaKbwiLJwbtYo2bTR9lGa/UL2G9sokktZcUKCRVwC5TKonQ86iahNQew="
+
+ct10="Liskamm occidental (4497 m)"
+sign10="aRbsxq4KyFVHps9i45xt9EvY6VjKPs7ddDbhHJwi8q1XEarPXQa1xjCjaJ6XrM2IG72UDXgmbSUfGQMY/E3Yga2dhSYAAPxn7CJTmzTxnMWG/FOPmRT+kZB1MsLnzMq0J0iRHhil7pLXZ1G6GViVoQ1PR11CZrw6cUj5qjKYlPYrScVpeNAA6OEyFE6HDShIZ7UVMlbLeiMWWL7YTJgJWC6fg9CfAaAmITCI18pvR3akLj8lGtI18dW+lx3bk211F6g9jZCHDv1+mufiq2Ky7HpwvyxJZulCP8fEqaYYpgOuFLqGUcIGi37tsPUhaRviJAUOqxWjs/+karybWpl/IVXglNQb+s9FC9TzzEwab33VppKMa8Ljc9yCjgn9oXPmlQwippdBLWsiSMfY5o8JgIR9QtoUG6Xv8FyBEF2P6NCJb9swXw4y8MzmdyhjeBx8Zu0NAP/xKPQWip8vDOaJVwbTgdbayVLIFhJWQ2qyrkhgiBG1uRVbXQjm7NXJTh+3yt2uYqCt/g0d4G0HAhHB6ltfLipfLxqHPD1LYpGj1wRRCheaXWlKOBw12v8FiFZY1mTFA160n6jVxKmBOyr1CD+7gspjBuEamV4Mr2Na3qTlS08xNsZt9rQoAu2kCajCjspwxh9Ytc7iDU3DGjLFt92c20Q36zcahTLnPdcNIVA="
+
+ct11="Täschhorn (4491 m)"
+sign11="XPKUyxlPbPFHeaSnnuk5zv1KBkY78sEcdJEVDDdMOz7vdLYhTQ5q+IjpAf2Sz9nn1V3zC9BpYDZFsILeFm7noYGoCKHF/rB5HZ8g9sfZZG0jhgk9KjihOiaBhl9kbzp+XoNA6DyMj5M31qzdHgaYPvQyfMxIvUmPyNgauXP4rNBg+FNPVBXon5bgb4+4NWHSfmkkwYjXU/J0CXEWt4bYqkdqdqPZit5VeFYNRVsQrGBs/p7sAHNhjItA3CbRaQuc0AJIDFb82bmGdolDAiWIctTqPZ3N2xX9xzeCpwUMtrZlAReH5DnLaB/uzo9BL9s55e6hhsg2potvOS6HJXVXJIxFafTS09yUAmQBUmY7g3PX8F6x7Y9GlkMt/vShCbHjswsH4PnzCWYq5Ym8j6IcH20ESTIZYP10C5Yuv3zkETB1JI4cmh67QKUzkc0bg3T8UP7FsoBHOOoJl24o3gBSpt5Uouq8JEFZAnu3UwNP+zQSv7tmEk3P2jj7kYTPzbLgD/PsaAETAPDwCdBGORxdnVLkHpBYFG0pgMwnR2PTfU2bpnCLfaRtJozEPUmG3B+k0GcOqAuW+vIdB+mQ/IEqZnqGBuQQ3NNDk5WZM3rIOK4Cbh/IY3YmNLBQ5qX/Jpgzuieg0bTnGw4M7jBWRcFleOOHX1g2z1zkQWDDjLHdLkg="
+
+ct12="Cervin ou Matterhorn (4478 m)"
+sign12="yeUvzkGqkXSt7q95gZyl1Qod/kAJizIevnL2XMAWp20dErMIuyQmo77sKmBy29BPXtVBjtCvq0oRs1NnCaVTcq132LumdFDBepLEdD/pLevlnRMXqI+wqIoyDBfVnK/FQW13whOEmmZr7fYhjyflhCACKwi25ZeNBYJvUVyly0HXa8F5vz3oA2rmq7yucuqt7c3OjKLT/7klLA6ndj29lKcAtPkikUg4kXh1rnT1qmD9ekKjYrpGhcX/7EnrMEpcyQct+dD3ws7eJ0gBfv77ZvucjCayJs0m0YBZrXgPEn3NgHqc5PczVh0BbLVNYmr1ThmA2KOS9SMAw4GXPGxdR2hHmze5fzeX+K2RPYuwXmTR3bqdHaaC39L6Pycj4Uwkor52qZ9bDhhr+ifdGRLkOnFoRq/Ccqm6zJGALMDlYMpINJC5LzMJ9NwQQc59dcElZIqpqsLmsb2zQH1aoL4z0pF5jvguvzP8eMUPeBtGYUGTVGS9dr04aCJulkoOA6upTIwaRs/PPFb6vDZgPnAOMd1Zywe/S8GVrVk0yCLpayPlWhqYXPZT4b+rmPcujZp6SCQOYinJmQHpPSs0H3PNyP7458yx1Xjccvtw9CKAJS9+wOzyDEMDeosZErCppEZEIOVP1NUQFy8Dl4aGmjyZlPsK2rb0uweF6AVQmXVXMq4="
+
+ct13="Mont Maudit (4465 m)"
+sign13="ba5UCZU31AxGI9ziOn+QHxy4FL860y3e1S4OrR4kQwIeLUFUzZR9k9S0t+z4EUvtJ1Zmow7tLqlUrF9JabX2P8ZRg/8W6FFX+BGM9RiI9ddPjxERlSC1OzXhEfQ4s0PN8V+13RZxlPouZxIaBMad12ZLa5pmEQQfAKzT/Gh6fDcmByb4zv8FM+DKiFMAtUGTyCnd8o2O8RQlUEWRxUILqJNfQk1R44ZFOlPIPIZVq/bzsPa83iLJJiI/GO8nplF/E6c38n8vNqWCR2uh4719NXfSdk0/vhClDGIUNXzEWmdCrwFyhP9INaVq7ZOCm7CuRdsrdNIiFM6cw3BBRNg/meVTDuASfV4TwlJAYmlxh08QSF6tsA7KEOPyxbl4SCenAOlFOb1juYozCD8ckut/rNFuLtfhU8QWQsw58BdglfnAfYuqBWRyGXiWqu/SC3CSOjIWv8nCo671WK+iLHAcNg28Td7VSEFmQeDEu2zV4pm6max5IRBjlnnP1/p9yyUnyzg6jzbCHCySFxTXzTdc9B9V++eiw1ikilH+C9faoJpy/h5i78+SNE/ai+1KO5GNII63F4f+E175WiBHBSMfhdtOXMPu78/wG4SSsJtz6VX83RgA4kXl1hKEoPR3eaEaG6j/OJV0VkvK554sdL/lGLFjt7iVh6iUn1yiq+yZ9E4="
+
+ct14="Dent Blanche (4357 m)"
+sign14="Q8k+Cpcg9FomXqMwARgGaCQGgaUJxo3HZ1xjNWETChGvQ5d9WYfVzUUJCFyO49s+8/a+3ORnbvZpnJ77U69y+lJhxc526UpULbe3gd3NRv+F7NfIApUYbo8rdjAZoM1OiZ3Cq6oQtrEcIngH32QMzGIV58GYDVtDUaFniOOMx/skS3U02HVRy5gHBUrL2o2Un/TzD9lITDMYmypEgXYFyzx5gO3d1IW+M6gATn9f2uNi4ppMEry2fohQigSl5iWa66Uu1RAqWfpjOrABtSAeaylG8I6r/5Y4mnzBVy6+yUDZRfVqlHoMwp39mUArxGb2LGbPQlsu8ThRnybSRrRAaSL25/k4rK1qMHmsKMOEsdyRXvT5YgMbjFzXZcc9rZuYkDmN/eY4kCQXRTB9SiBWj9p7GLqhX52ObLG88CYgAjgbgtP2SHwjWOds7Ta+YSNf1w1IoByc6XpENrZ0rqd+GNiecGKBjtPkTEXnS/0mvz33bzcPr3V8lWdCQGICOsZT0hgTKQSGcoLurR9mV8aESFX8oRExd+0mvlrNXO9c7y//wmYlnZ/IZ/D+Sp5C/eYsIPvyQLJ8T3CSphQtITfqEJxBcwd4MtlRyesEuWQvterLbzWmlTS1IxPGY4lG44jIPO/jNaYpQ1fQFu6iaDD5Nxf8v/B9fcXKRFNQddRnfBY="
+
+ct15="Nadelhorn (4327 m)"
+sign15="uKJE0AOU6sFXGclMYFw2dnoLj5rvsq3/X3tAUIvYJnjGnJRbyNKtQZruwtc3V9/4/XfBFo4topMAzBUxVC8/J+3+mg6IMbMf4M1Ekxw9JrnYvJjUVm0cN3FdY4LEcWBcasPexbfKUgy4ST0tl9NLhl1a7Y/mvlQCVCwmo7JXii9/YxHWD5wKBvKalOoD1fNtApsDPWLnEjWlMW4x/+I2up8oQpQ8v4JhEEunKZrHGtakrYjBPm1gD1L2Lp77INifpBhP/ymtnk/OdOrEM337v8XL3jrG4wesG5vuzfjEodajeZqsfUbeGOQpPl4z7f/U9B3tpGcRHl6Sl3D4yxnUWo7+wsTmDCXE39/mEMoOF8uYF0n42+mefu9R6YyckgY+qYkrTRRMucXDTunCL2Pgb0g/Ov3rCJPDRzsZM7JksI4B2uJjFMkDLhQXo4iSkdaj+jEeFkmbVOXqWTusLrJECjEiTJVwVq32DUI68bKk6pBy6C2I8Ay9vAWDacMPsIg8XnG3Knwd4JnX4qG9xS+FRRX1W+MDZ9mspAXvW4cnEP+OVPWdsHk5+RHFpV3mYfYeD4XJ1BQWVLmp65yqI1gmcpmH5iWFS1Qm3OQqPMZTgA3Ek9qIlPl9V/0GVCYqS0LYdtQK4gpD3aEbEtdaPeRFZNRFwfLsV2moIXRm6tz7u8U="
+
+ct16="Grand Combin (4314 m)"
+sign16="oYpHiytUli3lKba5gBltOt6fIE6QL3fUAtjeyl53qTFTMihPllaNPn4A9Lc+NlWaNQWecBmaSZba6mEwXbKSZmN0kYmb0+TiuC3YOoW07Ku8cD1Ed80aAqakFuL9zZJG5gTC3C4ZPJjDyD+ovwIvQ9l3V14qaFAzMYojk80fkyqOj3PqA71oZASwlbJZoLQvXCqeOvFu9F/jeGiFSvw2uWBy2v9TPsEBH4tUAZaPm5e5V4q3x75y9bbZ56M9tjWtT/Xkz8B0QXPVJIL4jLrKVoplUAl8uxCXDzLoPdOONw9w5IK341ElqYjsljzNfXC/i6vAw7GcczgOJsjPvRptMN7gKdyFkpOznmDhmJacWZSm9B8rlzlqyElPwhrE/tQy86H98LBqBxyvTivXWHvklWoER2z70jSjkjeo8LvFpyUFKMF7R40xYzZWiqx3FdTOAgXcTXpbRDEqqiydjChAU9yyCUfrLpPd4UHJj/HAKcgNmld8HcM/JMfXyZYJj/EwlOYKb1uLiPlgZHi7JdjObEt29ENv4uEPqNns6GDcP1rYCEjYivCnzU5YnD1Xewep4Y7ekuUAM6qqQPUq0THKZ6Uq8MLXaleXA6HZDRXQJQLchOwDsCvBnjXkxutVUmTLkxloOdDuFFxRYttQnDPWKzfqchDsDycpZaT5CIX6UpY="
+
+ct17="Dôme du Goûter (4304 m)"
+sign17="pSylm/ju9odsYyO0HDAb78WnAueSIRDxYBszmxG2mwkBEyPFlPpFaxBV7TJiytmaCJ3FKU+CXLqZqdnKetU94FZYeVpwqyk/A1axABYeaD6ZTGsFge3el3Nrk0qwOZ0kkqz4iVkKX0NwGKqziTP384O++tbW5oOSZv5co2s26RixJ9NWfNjou2wbagd0jbUGiNVM0oJKCv6LO+I7xt6c00F7D/nP924KSFDipNYgVRUbgkNBDYqqdXvOMFbOF9rBjayD7BRQyxQjX4JVKoYBfEkjQgVrdk/t3hXyQRuysN0a51UpNCvhHUMxA58DI8m6/I7g4NrYoxjzPX95wF9IaLOMTXgObwpvSgJjNrzjr1cdAVhYZW8EDJOWEUAP+Odl36eYjmgQk2byxHE9jmBORNyOqMOxgETQqpUBgUN9TDDVaVT0HSe7vKhHo5881ghTrzY0qaStReOoKoyd9jsNsa8IOzzMzNzLK9qYpATHNRQipXxjqMQ/8LuX9+06ZKRp8tLbWIcTl7Z1MYws6O6tcBfPCFlJr/NJxOb7fl2/juM7QQ+aoNpiKrD+N24PrIwawDwFynnV+hIz7nLBStiRyLXyZKq5Dmt7KsbgmfN3sl/K7oyi+bJsHPrcgwVF/xfLeBiHcaptcoDC1LXVRfh4jE5RJnpMhc7TWua9IzCuCqg="
+
+ct18="Finsteraarhorn (4274 m)"
+sign18="GpaOVuCRPA2K7Y/IPi7PuWzxsuWi/Y8wLYHvuXUPHr7VelnrF9a7Z0Vta9tcTTdp8Rw94MxcgRzRel3S+W8jNTMQX1m6ND3cjIQCa1C+BlAbIc+k/EHmnYQxEoBzSAOFT/74QeXkYrgdXUJs4x3L5o65Wo8I18kDxNrJrcDpMLhDbJ9fjkYa53EN3HFdzXkVeKC4nwePPILUbNmlxTyRxc2zqu2zr7Xd9Yueiru+MqIDmADyLJOui4FumYYSOcomycrE5JS5ReOW+IAihVb6YqDdbCHVElfjNAV7AtXs//3i8hBEjkivVhQaYBBNJTJvqWuanHnCyKoWr5GjrTEII9ZPlgCvaK/fjWbZpKpyBdbJzJX0SM6vV61mHT7YMQeDohFoUvyEk7J1U0+Jv6AGI3wMO+3tuqbDofDUzInIGxpXHIh54grshv57fcdqkioCgM7Ezf1/7SQsKWPRJH/i5tKwEfbF7UZmsrY9U07kTdhqQPx7r6OT7ZcTO9yxPrzuqevKJaaTRa00TNUS225DjrNQgV2O5vT3h4lBmH2KT+x/eId/oWAHz2Wa24DLxfToFKF4uNa0EeU8xVNZec6fV0R0JWN72HjFAQxKwPCxLNvfpeRdHYqJ/s+BF4R92NOwj2+Xz+8FWLUn9tUrTPUSZ7HjISdBJayaxfd8dMrYcK8="
+
+ct19="Mont Blanc du Tacul (4248 m)"
+sign19="iat9bMcseb61860IXcv6B2Xxn93flnanV1saJJ0CPY4Z6h5txeE9ffeXNrProykzSm05sJr/llWIX9+M5eVMQgsauEjTtZliwQbOdms9dDEg8nWs4WSGJDQrAnT3HIVOdT4W6RaP6Ukq+AaZh00DZmBni5hwb15ljE5HpYsDqnsnu09bjPXkWswptMRRH48611OwxZzjVagJZ6O3BiO6VEF0Fzx7tbLF4Zrm/9CbFk1O0qRj7yokBErr7nRjZh68awdXRxQy3Vtumy4KClbDIKXICZtAUmWS4Mys7a0Ry74uUA49pcBxrm7ISE4MldhOKRntjPpE8eJ7Fm+7/e1lSJdabZElFvKMja+VG5odjPXNQ2Y0I3jqS6Y5Z02qIl6o4J7WVz/KpX6ASHE05S8Ib8btt5A0BNJMBPWlW4IGkYJXGeW2ZtSodvGLjq9jTF+Worj68mT5b0iGzpQO+gBia8kKs8yOZaK38Cp8krzZgq5E1oigG+gKpWQ99gpVihTLNav0eGh5+8zuP61yw66XSoH4059xBvR6Bp0N+/f3E3cTl9bVAfkB8lO8uFOJ4HtWQVkJNCwUlOwZOOX1v/MmuZ3dL1mXpSCsWsA47hK3RTFc6ZNXN94Ln8wcL6WHM7qnhTnyp6Ua9JubzLl+2N8ozAtlSnrAUhyZ7a4jWx2cvBQ="
+
+ct20="Grand Pilier d'Angle (4243 m)"
+sign20="a2dN5h+ld1dqyBO9ZbNr+WZ9PXoBYAL3iNava1PbBTT1aLrN8+dKKMUzGMx+PccCdygEnp4IkapWkjrBFY+8mOC+JrxYMNXvjWH/3XNoD1ukfJgNTZHmfng0Ga1UchIr8VJNqgMfgOcpGA91mN9OWFc5b67wP4iuT4B7lo6xP+F1FUD0ft4dCDotRK6nOVbmEg61b/iTRw5XmmVohtXk1WSRyiWFWjByafWhCD4PtCwHKJ5nEQDY+aMBL/6I5hgH3JffvOCXL8D2d0BZmQYvJLQMdF7K1uNHGGb29+m3dCRNFggPy3pQiAPUdSE0jY6gJ/9unav+1yjWs9ONow257zxchCMXc7IkYsHW9niLpbP88rLwxG5+rPXnHDDv5sxel4BcrPZ6zs3WuzIlvHHhKFanBy4GBzH3AlPfmidN05lk+PkyBtNdI2obTt9tqEVJuOOZSqQkf5dMEhe/8tgNMpxGCfqRbgWvr773vPiSvAGLtRQTslVLLwLA5dgetZWL1vtMn/0nYl/Ar9hwybqkgIvB0FP/7/BRdQ2RixVm9XzB+HGz4+TQQyQPOntewQrUFncHFn1ua/AOu3krIJjkg8XhGEYc0I4APBzGD3EiWka+yL4lK7LX9E5I3SJdbusjZyF53sSZf3s8AWRs9N1h3mWK7nUfyRuy/9yMdPgekRo="
+
+ct21="Zinalrothorn (4221 m)"
+sign21="NUDsBPUZ8qYERyQ2f+lCrsGbcrqjPEMP8uX4uo1lOLCt6oxMhNAqSKednSgrLUR3WDs7F/EQMCm2Yn+oMZpseeqO7GY3dpFpcvejh9ebWgQqyGCUlYcZCgfX0o9qnd7CRfeRjgMwUeMPW3rqcNHpK4v1iVUrOqW8YSgPjEE4N6atwJXgj4k3SZM68A72zokTqWggibfe2tTkw+Px+A4Bbgy+60gefyayaET3kA0+x/wNvrFs7lMOIAwpISYQxN2hlu8r2pbGInRKWJIQinsyHJI8bODmuhCWpCDDpzDlVWagiXWRJxCg8/MO8l7gY1gYW9lHySXGOb4zj3gVRxNPvROWo8c4TEUPVU+BQIc+uHtrPmvCh2d5QtET/n6nnZUSt9lGDk2YGk8XPhOfVoyXb9C0nxv5BAJlZAMJDmg8fqUWct5aDsc9XhQ4+GrdgHakx/zGyXMSpwh0LafmGjQdVJ3CxX4hhW1O9doRYloTzMvA976muDm8N0GpaiDkFqlxcgcuwNhMGQQgAECn+az8AH6B/gbZfm29NJmhltsFB1sdOnKQOFixGLg9A31HfXDTnT1liDYsZmXOBNvdGv2zeQHlc3adTXVOAvleGOBG4wIOXKw/UqaUliUsDahas/3+ysmrFBQVZ1sg8Xfq+W0089FWXwr0270scm7CsI+uQLs="
+
+ct22="Grandes Jorasses (4208 m)"
+sign22="E9k1whbwr9efXXiprE+wlISdjF06rDvk8nkxqowX+pztY0TeHcL9TgcrrScF3WX0644jNNJvk7AykWC0wd7MEdOfLP5erfijaZ647mNwePOcw0NIUMMn+PNsRUWMU22UPd4nMWNaqa8kx0HLxm/MNcFVEJ1SW6Ncgp+nJjzyqyZO+kd34UbPHmyvg3N3CRs3VTvueXEh0q1+GDuAPnGLmWceic551YK1/+4q9mdCCbKzS1YwdKgC29D2HjRumHHAITBeN2LaeGyNfwZw4w31xvEGeXbHQDNG2xNA6Dzw1dzzoyPY8loNURg5SkqLs/sjuxE2vN8MwCuNPPiY92EqNsyAVx16IjZ1fWykd7gDPE63SUAia7PIwqmq/hvcl5ThAVwe2mXKk5ecZoW98nzv+NGKU5Adfp3xgNiFrpRboGGmLkjtPafBWGpbTx+YU8VmylPdSjbFC3TDk+851NNz/mVaTrpr42BAVni6xPlyF7mq8cbjuu78NA14k7+8cipGdzheiR/PCKM5VrSaoFaS7oIagLMi2oFJ36g1BAxb4YNEfe5VJ/caI5IKXLLxFHfmb5/JsLfrL6vb6w1lZqvtgx2p/I0EeE9MeECbghiBI+5ilSkNxLXZszuMOl5EHGpk5seH2gqmKAKUg+DeXq0OAC6QBJ81cILzmCD4WWFsT/4="
+
+ct23="Dent d'Hérens (4171 m)"
+sign23="P+GWSJuoConI4vuI3TvyooDeEF8lhhRQtlAskzRopzH7EW/9A6etX0chK9GsVkrvBKSF44F9ps3HeHtSmJ6uN7cqaEaCxhcN0c4/j7OXEWGknxrrig9451um3h4xL9hDIXtiPYT7IxIDlzCMlKhs/MEFYKOD/xnCdvZNJIPq2ZxUPx7zcWkAeQH1plZ1bBMlua3NGFVOLzVmAz+wOgrYhZM3JU58NITyx5ZLWG8xhC9k+UzJFk87qkoC8QphFtHp14NmyGXPBGRyf63nB3fpTMyARQZAONLRMOIgrVQqhEACn87XR69E56LKOFDylXZhs+XkzQ2K3EYs/7V9RXLbjJRJwD0gN+wW8+6fQ1hrvvttQNGmXPPOQrjYeDnMfvQXnWAEIO8bxEbILdjI7L4RXMqQlgXknfmSoxNhC2JeQ7EBFOavDW/CKuMk7ioPgyJaUrM9z2Q5UmKIN8cpTswPJG0aOdggH4+CvbloVxp9eUO0xnF+xUB/5/QNkoygWSX9LrISxPo2CfXQRss0Q5g6RyYxFj6J+0+uFKKl9MxoeLyizWgXyZo6YuNnLLaRFbwXwETP6IL6WXGJBT0HsY0CxHVCYZhNO+t59CRIa5VYlhBhfdFvPl9XPvDryFI8GLJHXHN7mcIHL4xKhBVtwPqvvgSNUHwMPskfpYzsEmGbfMo="
+
+ct24="Jungfrau (4158 m)"
+sign24="ZifYw4bXYp4JPFT9wwX8/dDWZPqnHgUSy5fH883GhIj16gxq/kTJiJruCIzXm2nBh7eDfbd3Fu/kZ1sujDvxPC5n4mW9Au+1IjfsPPwRsbVS51TLzJB2ixcXHlzTZHpHtAfk+YfTVniB3JnrsYsKFOhqkh9dYDy2CFnp9unoKnKBXEa3XhNqstTZHYB24Nwl6nx5QtK8OB6v3k6Xw7zmEyJUZnqMb3HXAI8gKPqysTyOMxcqiuYKjYCpKrmnpuiXSkUI2J9YEJL93Iq61lTNcsmkmvQ3EakFnJafZ9c8z/ivN1KM4IegEn6nL22EyH2Y5drkESQQWcr2TKBuYeUaF0e5evIjxq/wtXlA2OjTqELxKP2ZSmm1mIm3+66Juvz1hDjy2y+UwMyZYqYMn4LT2uewzBU/31jzF9vdD2Ifll1NWwyEeEJ1e2OcIVbpzco5C96GJr+74oG9kco0GWsHTsGS2Ill11bficfmhHzzpINKsmOKkig4i6TSFrV3JDibkPtAlS+CdWTsLdef3Sa17ZBXCY0bBwQlGCorHEM6Em7fnf9KEmjQS19mL75bonUMmO723oqHS+VX7EPnjeZJAdft9uQHjPSEAi86zZB/I6GUH8EHXDzQaiBy8x18qqG83G2j2GUyw582zhCeCF4F888pXsLBDFLBLjDhNk+ky3k="
+
+ct25="Bishorn (4153 m)"
+sign25="iVtel040GtNiZ4C2tf1BJTFYis7BRNG/Hk7/tjmhl8x64Qe5mgBwD8zx2CgEzYYm4JStNhcFB8pRf4JFD6yT3dqN7qSXG7EULI36x0KRPeH++6185r2BaVBRbhXgL+X/uJZ55ls3Z1s3AXrGMveVKrpC5ZtACPNN1rnb257oCyjiNJe3tnIn3GJ/YcQUWihimNeQKpQ5GewAHgNPTvxB9oO7VL3JXeoWdwPzRzjbDARDlq3+YYZp6i/hboTBt0b7KQqE6MkJCpRNhywiiZ5OVeoaUOgRzXpCQXh8/7pVV3rP1mSfMXTp4cryZPNILIkzsz4GmixypVlDLc8fv55NaCEk/1tBRM4sTWaM4saKf0UfeLd1uwT0aUnHUleuG3DSLLbJB2A5t+ZcSIi08dA0/Pe0CM5Xkr6Gls0MJSl6Cvpl8Xqh5ClCje6Zezq3Fzj4mYwOOHZmAz7EfG3RBqNWegYPlXQU05HGw5Hw4TOG1RwRWOejWaLOU9fzUc6j6Zj+lGXJpRs5iYF/hDgLnL3Kz0Bd3KGFbKkL5f7y5NRXhIaeWfx7l5ZlHRtEzGIkQ2Ee+NQ1q2yqo7uiQSsFlG4paVrV8drHRYv4x/sGNsXRzEKDvkAcS00yHgW+K0sw7PTjR9N9MA0Nwfu/JfQi/roQx8I4jaTrsdSHKXH91zu9KqE="
+
+)
+
+func main() {
+	// Import PEM
+	rawPub, _ := ioutil.ReadFile("./pub.pem")
+	rawEnc, _ := ioutil.ReadFile("./enc.pem")
+
+	blockPub, _ := pem.Decode(rawPub)
+	blockEnc, _ := pem.Decode(rawEnc)
+
+	pubIface, err := x509.ParsePKIXPublicKey(blockPub.Bytes)
+	if err != nil {
+		panic(err)
+	}
+
+	public := pubIface.(*rsa.PublicKey)
+	enc := blockEnc.Bytes
+
+	// Check signatures
+	rawSign1, _ := base64.StdEncoding.DecodeString(sign1)
+	rawSign2, _ := base64.StdEncoding.DecodeString(sign2)
+	rawSign3, _ := base64.StdEncoding.DecodeString(sign3)
+  //	rawSign4, _ := base64.StdEncoding.DecodeString(sign4)
+    //rawSign5, _ := base64.StdEncoding.DecodeString(sign5)
+    rawSign6, _ := base64.StdEncoding.DecodeString(sign6)
+    rawSign7, _ := base64.StdEncoding.DecodeString(sign7)
+    rawSign8, _ := base64.StdEncoding.DecodeString(sign8)
+    rawSign9, _ := base64.StdEncoding.DecodeString(sign9)
+    rawSign10, _ := base64.StdEncoding.DecodeString(sign10)
+    rawSign11, _ := base64.StdEncoding.DecodeString(sign11)
+    rawSign12, _ := base64.StdEncoding.DecodeString(sign12)
+    rawSign13, _ := base64.StdEncoding.DecodeString(sign13)
+
+
+	ok1 := rsa.VerifyPKCS1v15(public, crypto.Hash(0), []byte(ct1), rawSign1)
+	fmt.Println(ct1, ok1) // nil
+	ok2 := rsa.VerifyPKCS1v15(public, crypto.Hash(0), []byte(ct2), rawSign2)
+	fmt.Println(ct2, ok2) // crypto/rsa: verification error
+	ok3 := rsa.VerifyPKCS1v15(public, crypto.Hash(0), []byte(ct3), rawSign3)
+	fmt.Println(ct3, ok3) // crypto/rsa: verification error
+
+	ok6 := rsa.VerifyPKCS1v15(public, crypto.Hash(0), []byte(ct6), rawSign6)
+	fmt.Println(ct6, ok6) // crypto/rsa: verification error
+
+ok7 := rsa.VerifyPKCS1v15(public, crypto.Hash(0), []byte(ct7), rawSign7)
+	fmt.Println(ct7, ok7) // crypto/rsa: verification error
+
+ok8 := rsa.VerifyPKCS1v15(public, crypto.Hash(0), []byte(ct8), rawSign8)
+	fmt.Println(ct8, ok8) // crypto/rsa: verification error
+
+ok9 := rsa.VerifyPKCS1v15(public, crypto.Hash(0), []byte(ct9), rawSign9)
+	fmt.Println(ct9, ok9) // crypto/rsa: verification error
+
+ok10 := rsa.VerifyPKCS1v15(public, crypto.Hash(0), []byte(ct10), rawSign10)
+	fmt.Println(ct10, ok10) // crypto/rsa: verification error
+
+ok11 := rsa.VerifyPKCS1v15(public, crypto.Hash(0), []byte(ct11), rawSign11)
+	fmt.Println(ct11, ok11) // crypto/rsa: verification error
+ok12 := rsa.VerifyPKCS1v15(public, crypto.Hash(0), []byte(ct12), rawSign12)
+	fmt.Println(ct12, ok12) // crypto/rsa: verification error
+ok13 := rsa.VerifyPKCS1v15(public, crypto.Hash(0), []byte(ct13), rawSign13)
+	fmt.Println(ct13, ok13) // crypto/rsa: verification error
+
+
+	// Build the PKCS1v15 padding
+	// See https://tools.ietf.org/html/rfc3447
+	m := make([]byte, len(public.N.Bytes()))
+	c := []byte(ct2)
+	m[1] = 0x01
+	for i := 2; i < len(m)-len(c)-1; i++ {
+		m[i] = 0xff
+	}
+	for i := 1; i <= len(c); i++ {
+		m[len(m)-i] = c[len(c)-i]
+	}
+
+	// Execute the Lenstra attack!
+	// See https://infoscience.epfl.ch/record/164524/files/nscan20.PDF
+
+	// 1. Parse input data
+	message := new(big.Int).SetBytes(m)
+	signature := new(big.Int).SetBytes(rawSign2)
+	exponent := new(big.Int).SetInt64(int64(public.E))
+	modulus := public.N
+
+	// 2. Retrieve P and Q with p := gcd(n, s^e - m)
+	p := new(big.Int).Exp(signature, exponent, modulus)
+	p.Sub(p, message)
+	p.GCD(nil, nil, p, modulus)
+
+	q := new(big.Int).Div(modulus, p)
+
+	// 3. Retrieve D (private exponent)
+	bigOne := big.NewInt(1)
+	pMinus1 := new(big.Int).Sub(p, bigOne)
+	qMinus1 := new(big.Int).Sub(q, bigOne)
+	d := new(big.Int).Mul(pMinus1, qMinus1)
+	d.ModInverse(exponent, d)
+
+	fmt.Println(d)
+
+	fmt.Println(string(base64.StdEncoding.EncodeToString(d.Bytes())))
+
+	// 4. Decipher!
+	cleartext := new(big.Int).SetBytes(enc)
+	cleartext.Exp(cleartext, d, modulus)
+	
+	// 5. PKCS decoding to extract the flag only
+	for i, c := range cleartext.Bytes() {
+		if c == 0x00 {
+			fmt.Println(string(cleartext.Bytes()[i+1:])) // pwnd
+			break
+		}
+	}
+}
