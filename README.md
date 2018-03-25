@@ -24,5 +24,9 @@ Here is a list of all challenges you can find here, ordered by the name of the s
   * Dimensional -> steganography based on dimension reduction
   * So easy if you don't solve it you must burn -> steganography based on anamorphose
   * Wargames -> a GameBoy reverse challenge
+  * Suffer -> a crackme
+  * Unlucky -> a crypto challenge based on CVE-2015-8618
+  
+* Nuit du Hack 2018
 
 
